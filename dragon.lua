@@ -409,6 +409,10 @@ function Leg:update(args)
     self.fixation:influence_recursive(nil, args.time/2 * multiplier)
     self.current_target.pos = current_target
     self.current_target:influence_recursive(nil, args.time/2 * multiplier)
+    if self.air_stage == 0 then -- is on ground
+        self.root_joint.pos = self.fixation.pos
+        self.root_joint:influence_recursive(nil, args.time/2 * 0.1)
+    end
 end
 
 function Leg:draw(args)
@@ -488,9 +492,32 @@ function Dragon:update_wing_spread(wing_spread)
     self.right_wing:spread(wing_spread)
 end
 
+function Dragon:decide_near_target(target)
+    -- make the move more random
+    -- and prevent abrupt turning
+    local chest_location = self.body.joints[6].pos
+    local direction = self.body.joints[5].pos - chest_location
+    direction = mgl.normalize(direction)
+    local to_target = target - chest_location
+    local to_target_angle = math.atan2(to_target.y, to_target.x)
+    local direction_angle = math.atan2(direction.y, direction.x)
+    local turn_angle = (to_target_angle - direction_angle) % (math.pi * 2)
+    if turn_angle > (math.pi / 4) and turn_angle <= math.pi then
+        turn_angle = math.pi / 4
+    elseif turn_angle > math.pi and turn_angle < (math.pi * 7 / 4) then
+        turn_angle = math.pi * 7 / 4
+    end
+    local to_near_target_angle = direction_angle + turn_angle
+    local near_target_unit = mgl.vec2(math.cos(to_near_target_angle), math.sin(to_near_target_angle))
+    local final_near_target = chest_location + near_target_unit * mgl.length(to_target)
+    return final_near_target
+end
+
 function Dragon:update(args)
     local state = self.state
     local target = args.target
+    target = self:decide_near_target(target)
+    args.near_target = target
     local dt = args.dt
     local clock = args.clock
     if state == 'landed' then
